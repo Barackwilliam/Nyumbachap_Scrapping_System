@@ -42,10 +42,8 @@ def scrape_and_save_listing(url):
 
 
 
-
-
+from urllib.parse import urljoin  # to join relative URLs with the base URL
 from .models import BeforwardListing
-
 def scrape_and_save_beforward_listing(url):
     try:
         response = requests.get(url)
@@ -63,8 +61,10 @@ def scrape_and_save_beforward_listing(url):
         agent_name = soup.select_one('.agent-name')
         agent_name = agent_name.get_text(strip=True) if agent_name else 'N/A'
         agent_phones = [a.get_text(strip=True) for a in soup.select('.agent-phone a[href^="tel:"]')]
+        
+        # Select image URLs and convert relative URLs to absolute URLs
         image_divs = soup.select('#property-gallery-js .lslide img')
-        image_urls = [img['src'] for img in image_divs[:4]]
+        image_urls = [urljoin(url, img['src']) for img in image_divs[:4] if img.get('src')]
 
         obj, created = BeforwardListing.objects.update_or_create(
             link=url,
@@ -83,3 +83,36 @@ def scrape_and_save_beforward_listing(url):
 
     except Exception as e:
         return f"❌ Failed to scrape {url}: {str(e)}"
+
+
+
+
+
+
+
+# utils.py
+import requests
+
+NYUMBACHAP_API_URL = 'https://base.nyumbachap.com/api/receive-scraped/'
+NYUMBACHAP_TOKEN = '7d9a3f905bf0c9fa46147447226d966d82f2ddf6'  # Replace na token yako ya kweli
+
+def send_to_nyumbachap(instance):
+    data = {
+        'title': instance.title,
+        'link': instance.link,
+        'price': instance.price,
+        'location': instance.location,
+        'description': instance.description,
+        'main_image_url': instance.main_image_url,
+    }
+
+    headers = {
+        'Authorization': f'Token {NYUMBACHAP_TOKEN}',
+        'Content-Type': 'application/json',
+    }
+
+    try:
+        response = requests.post(NYUMBACHAP_API_URL, json=data, headers=headers)
+        print(f"[{response.status_code}] Sent to NyumbaChap: {response.json()}")
+    except Exception as e:
+        print("Error sending to NyumbaChap:", str(e))
